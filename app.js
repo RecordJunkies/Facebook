@@ -1,66 +1,61 @@
 document.addEventListener('DOMContentLoaded', async () => {
-    const loadingEl = document.getElementById('loading');
-    const snapshotEl = document.getElementById('snapshot');
-    const featuredEl = document.getElementById('featured');
-    const newsEl = document.getElementById('news');
-    const lastUpdateEl = document.getElementById('last-update');
+    const loading = document.getElementById('loading');
+    const snapshot = document.getElementById('snapshot');
+    const featured = document.getElementById('featured');
+    const news = document.getElementById('news');
+    const lastUpdate = document.getElementById('last-update');
 
     try {
-        loadingEl.style.display = 'block';
-        snapshotEl.style.display = 'none';
+        const blogUrl = 'https://www.recordjunkies.co.uk/blogs/news';
+        const proxy = `https://api.allorigins.win/raw?url=${encodeURIComponent(blogUrl)}`;
+        const res = await fetch(proxy);
+        const html = await res.text();
 
-        // Fetch RSS for news/updates (Record Junkies has a feed at /blog.rss or similar; adjust if needed)
-        const rssUrl = 'https://www.recordjunkies.co.uk/blogs/news.atom'; // Assuming Atom/RSS endpoint; confirm via browser
-        const response = await fetch(rssUrl);
-        const text = await response.text();
-        
-        // Simple XML parser (for demo; use a lib like xml2js in production)
-        const parser = new DOMParser();
-        const xml = parser.parseFromString(text, 'application/xml');
-        const items = xml.querySelectorAll('entry'); // For Atom; use 'item' for RSS
+        const doc = new DOMParser().parseFromString(html, 'text/html');
+        const posts = doc.querySelectorAll('.blog__item');
 
-        newsEl.innerHTML = '';
-        let featuredCount = 0;
-        items.forEach((item, index) => {
-            if (index >= 5) return; // Limit to top 5
-            const title = item.querySelector('title').textContent;
-            const link = item.querySelector('link').getAttribute('href');
-            const summary = item.querySelector('summary')?.textContent || 'New update from Record Junkies!';
-            const img = item.querySelector('media\\:thumbnail')?.getAttribute('url') || ''; // Fallback to generic
+        news.innerHTML = '';
+        featured.innerHTML = '';
 
-            const div = document.createElement('div');
-            div.className = 'item';
-            div.innerHTML = `
-                <img src="${img || 'https://via.placeholder.com/50?text=🎵'}" alt="">
-                <div>
-                    <h3>${title}</h3>
-                    <p>${summary.substring(0, 100)}...</p>
-                    <a href="${link}" target="_blank">Read more</a>
-                </div>
-            `;
-            newsEl.appendChild(div);
+        let count = 0;
+        for (const post of posts) {
+            if (count >= 5) break;
 
-            if (featuredCount < 3) {
-                // Simulate featured (pull from news or hardcode top items)
-                featuredEl.innerHTML += `<div class="item"><h3>Featured: ${title}</h3><p>${summary}</p></div>`;
-                featuredCount++;
-            }
-        });
+            const titleEl = post.querySelector('.blog__title, h3, h2');
+            const linkEl = post.querySelector('a');
+            const descEl = post.querySelector('.blog__excerpt, p');
+            const imgEl = post.querySelector('img');
 
-        // If no RSS, fallback to static snapshot (e.g., hardcoded top items from site scrape)
-        if (items.length === 0) {
-            newsEl.innerHTML = '<div class="item"><p>Check the site for latest drops—new indie vinyl in stock!</p></div>';
+            const title = titleEl?.innerText.trim() || 'New update';
+            const link = linkEl?.href?.startsWith('http') ? linkEl.href : 'https://www.recordjunkies.co.uk' + linkEl?.href;
+            const desc = descEl?.innerText.trim().substring(0, 120) || 'Fresh stock just landed!';
+            const img = imgEl?.src || 'https://via.placeholder.com/60?text=VINYL';
+
+            const item = `
+                <div class="item">
+                    <img src="${img}" alt="">
+                    <div>
+                        <h3>${title}</h3>
+                        <p>${desc}...</p>
+                        <a href="${link}" target="_blank">Read more →</a>
+                    </div>
+                </div>`;
+            
+            news.innerHTML += item;
+            if (count < 3) featured.innerHTML += `<div class="item"><h3>Featured: ${title}</h3><p>${desc}...</p></div>`;
+            count++;
         }
 
-        // Update timestamp
-        lastUpdateEl.textContent = new Date().toLocaleString();
+        if (count === 0) {
+            news.innerHTML = '<div class="item"><p>New arrivals dropping all the time – tap Browse All!</p></div>';
+        }
 
-        loadingEl.style.display = 'none';
-        snapshotEl.style.display = 'block';
-    } catch (error) {
-        console.error('Fetch error:', error);
-        loadingEl.innerHTML = 'Offline? Showing cached snapshot. <br><small>Connect for updates.</small>';
-        // Load from cache via service worker
-        snapshotEl.style.display = 'block'; // Assume cached content
+        lastUpdate.textContent = new Date().toLocaleString();
+        loading.style.display = 'none';
+        snapshot.style.display = 'block';
+
+    } catch (e) {
+        loading.innerHTML = 'Offline – showing last visit<br><small>Connect for fresh updates</small>';
+        snapshot.style.display = 'block';
     }
 });
